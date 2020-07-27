@@ -29,8 +29,12 @@ private slots:
 
     void on_lineEdit_2_textChanged(const QString &arg1);
 
+    void on_comboBox_currentIndexChanged(int index);
+
+    void on_comboBox_2_currentIndexChanged(int index);
+
 private:
-    DataServer *server; //Указатель на TCP Server
+    DataServer *server = nullptr; //Указатель на TCP Server
     Ui::MainWindow *ui;
     double lowerBound = -10, upperBound = 10; // Нижние границы
     void ShowError(QString windowText, QString windowTitle = "Error"); //Диалог об ошибке

@@ -1,7 +1,6 @@
 #include "dataserver.h"
 
-DataServer::DataServer(double lowerBound, double upperBound,QObject *parent) : lowerBound(lowerBound), upperBound(upperBound),
-    QTcpServer(parent)
+DataServer::DataServer(double lowerBound, double upperBound,QObject *parent) : QTcpServer(parent), lowerBound(lowerBound), upperBound(upperBound)
 {
     ;
 }
@@ -10,7 +9,6 @@ DataServer::DataServer(double lowerBound, double upperBound,QObject *parent) : l
 void DataServer::incomingConnection(qintptr handle)
 {
     thread = new DataThread(handle,lowerBound, upperBound, this);
-    connect(thread, SIGNAL(finished()), thread, SLOT(deleteLater()));
     thread->start();
 }
 
@@ -35,3 +33,23 @@ void DataServer::setUpperBound(double upperBound)
         thread->boundsMutex.unlock();
     }
 }
+
+
+void DataServer::setRandType(size_t type)
+{
+    if (thread != nullptr)
+        thread->setRandType(type);
+}
+
+void DataServer::setFuncType(size_t type)
+{
+    if (thread != nullptr)
+        thread->setFunc(type);
+}
+
+DataServer::~DataServer()
+{
+    if (thread != nullptr)
+        delete thread;
+}
+

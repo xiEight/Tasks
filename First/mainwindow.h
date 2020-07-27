@@ -4,6 +4,9 @@
 #include <QMainWindow>
 #include <functional>
 #include <QMessageBox>
+#include <string>
+#include <bitset>
+#include <algorithm>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -18,14 +21,14 @@ public:
     ~MainWindow();
 
 private slots:
-    void on_radioButton_2_clicked();
-
-    void on_radioButton_clicked();
 
     void on_pushButton_clicked();
 
 private:
+    unsigned x;
     Ui::MainWindow *ui;
-    std::function<unsigned(unsigned)> funcPtr; //Function Pointer C++ 11
+    unsigned findPow();
+    void ErrorDialog(QString windowText, QString windowTitle = "Error");
+
 };
 #endif // MAINWINDOW_H

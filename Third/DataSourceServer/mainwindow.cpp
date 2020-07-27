@@ -6,17 +6,23 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+    ui->comboBox->addItems({"Sin(x) + Random Value","Cos(x) + Random Value", "Sin(x)", "Cos(x)"});
+    ui->comboBox_2->addItems({"Uniform Distribution", "Normal Distribution", "Exponential Distribution", "Cauchy distribution"});
+    ui->comboBox->setCurrentIndex(0);
+    ui->comboBox_2->setCurrentIndex(0);
+
 }
 
 MainWindow::~MainWindow()
 {
+    server->thread->stop();
     delete ui;
 }
 
 
 void MainWindow::on_pushButton_3_clicked()
 {
-    server = new DataServer(lowerBound, upperBound);
+    server = new DataServer(lowerBound, upperBound, this);
     uint32_t port;
     bool isOk;
     port = ui->lineEdit_3->text().toUInt(&isOk);
@@ -45,7 +51,8 @@ void MainWindow::ShowError(QString windowText, QString windowTitle)
 //Запускаем вещание
 void MainWindow::on_pushButton_2_clicked()
 {
-    server->thread->setState(true);
+    if (server->thread != nullptr)
+        server->thread->setState(true);
     ui->pushButton->setEnabled(true);
     ui->pushButton_2->setEnabled(false);
 }
@@ -53,7 +60,8 @@ void MainWindow::on_pushButton_2_clicked()
 //Приостанавливаем вещание
 void MainWindow::on_pushButton_clicked()
 {
-    server->thread->setState(false);
+    if (server->thread != nullptr)
+        server->thread->setState(false);
     ui->pushButton_2->setEnabled(true);
     ui->pushButton->setEnabled(false);
 
@@ -87,3 +95,19 @@ void MainWindow::on_lineEdit_2_textChanged(const QString &arg1)
     else
         return;
 }
+
+
+void MainWindow::on_comboBox_currentIndexChanged(int index)
+{
+    if (server != nullptr && index != -1)
+        server->setFuncType(index);
+}
+
+
+
+void MainWindow::on_comboBox_2_currentIndexChanged(int index)
+{
+    if (server != nullptr && index != -1)
+        server->setRandType(index);
+}
+

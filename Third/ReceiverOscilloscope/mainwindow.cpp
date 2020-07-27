@@ -6,18 +6,28 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-    ui->plot->addGraph();
     customizePlot();
 }
 
 MainWindow::~MainWindow()
 {
+    mainThreadActive = false;
+    qMVar.notify_one();
+    if (socket != nullptr && socket->state() == QTcpSocket::SocketState::ConnectedState)
+        socket->disconnectFromHost();
+
+    if (socket != nullptr)
+        delete socket;
+    if (paintThread != nullptr)
+        delete paintThread;
     delete ui;
 }
 
 //Настройка внешнего вида графика
 void MainWindow::customizePlot()
 {
+    ui->plot->addGraph();
+    ui->plot->addGraph();
     ui->plot->setInteractions(QCP::iRangeDrag | QCP::iRangeZoom);
     ui->plot->xAxis->grid()->setPen(QPen(Qt::GlobalColor::black, Qt::DotLine));
     ui->plot->xAxis->grid()->setPen(QPen(QColor(140, 140, 140), 1, Qt::DotLine));
@@ -28,6 +38,10 @@ void MainWindow::customizePlot()
     ui->plot->yAxis->grid()->setSubGridVisible(true);
     ui->plot->graph(0)->setPen(QPen(Qt::GlobalColor::black));
     ui->plot->graph(0)->addData(0,0);
+    ui->plot->graph(1)->setPen(QPen(Qt::GlobalColor::red));
+    ui->plot->graph(1)->addData(0,0);
+    ui->plot->xAxis->setLabel("Time, sec.");
+    ui->plot->yAxis->setLabel("Data(Black) / Smoothing(Red)");
     ui->plot->rescaleAxes();
     ui->plot->replot();
 }
@@ -79,10 +93,10 @@ void MainWindow::onReadyRead()
 void MainWindow::onConnected()
 {
     connectingTime = QDateTime::currentDateTimeUtc();
-    qDebug() << "Connected!";
     ui->label_3->setText("Connecting State: Connected");
     paintThread = new std::thread([this](){PAINT();});
     paintThread->detach();
+    ui->pushButton_3->setEnabled(false);
 }
 
 //Сигнал отключения от сервера
@@ -110,13 +124,21 @@ void MainWindow::Analog(double x, double y)
 {
     ui->plot->graph(0)->addData(x,0);
     ui->plot->graph(0)->addData(x, y);
+
+    ui->plot->graph(1)->addData(x,0);
+    smoothMutex.lock();
+    ui->plot->graph(1)->addData(x, firstValue ? y : smoothPrev +  smooth * (y - smoothPrev));
+    smoothPrev = smooth * y + (1 - smooth) * smoothPrev;
+    smoothMutex.unlock();
     if (y > maxY)
         maxY = y;
     if (y < minY)
         minY = y;
     ui->plot->yAxis->setRange(minY,maxY);
     ui->plot->graph(0)->addData(connectingTime.secsTo(QDateTime::currentDateTime()), y);
-        ui->plot->graph(0)->addData(connectingTime.secsTo(QDateTime::currentDateTime()), 0);
+    ui->plot->graph(0)->addData(connectingTime.secsTo(QDateTime::currentDateTime()), 0);
+    ui->plot->graph(1)->addData(connectingTime.secsTo(QDateTime::currentDateTime()), smoothPrev);
+    ui->plot->graph(1)->addData(connectingTime.secsTo(QDateTime::currentDateTime()), 0);
     ui->plot->xAxis->setRange(painterStartPoint,x + 1);
     ui->plot->replot();
 }
@@ -125,12 +147,16 @@ void MainWindow::Analog(double x, double y)
 void MainWindow::Electric(double x, double y)
 {
     ui->plot->graph(0)->addData(x, y);
+    smoothMutex.lock();
+    ui->plot->graph(1)->addData(x, firstValue ? y : smoothPrev +  smooth * (y - smoothPrev));
+    smoothPrev = smooth * y + (1 - smooth) * smoothPrev;
+    smoothMutex.unlock();
     if (y > maxY)
         maxY = y;
     if (y < minY)
         minY = y;
-    ui->plot->yAxis->setRange(minY,maxY);
     ui->plot->xAxis->setRange(painterStartPoint,x + 1);
+    ui->plot->yAxis->setRange(minY - 1,maxY + 1);
     ui->plot->replot();
 
 }
@@ -139,6 +165,7 @@ void MainWindow::Electric(double x, double y)
 void MainWindow::on_radioButton_clicked()
 {
     ui->plot->graph(0)->data()->clear();
+    ui->plot->graph(1)->data()->clear();
     painterMutex.lock();
     painterStartPoint = seconds;
     painter = ([this](double x, double y){Analog(x,y);});
@@ -149,6 +176,7 @@ void MainWindow::on_radioButton_clicked()
 void MainWindow::on_radioButton_2_clicked()
 {
     ui->plot->graph(0)->data()->clear();
+    ui->plot->graph(1)->data()->clear();
     painterMutex.lock();
     painterStartPoint = seconds;
     painter = ([this](double x, double y){Electric(x,y);});
@@ -162,12 +190,51 @@ void MainWindow::PAINT()
     {
         //Если очередь пуста, ожидаем до тех пор, пока состояние не изменится
         std::unique_lock<std::mutex> ulqM(queueMutex);
-        qMVar.wait(ulqM,([this](){return points.size() > 0;}));
+        qMVar.wait(ulqM,([this](){return points.size() > 0 || !mainThreadActive;}));
+        if (!mainThreadActive)
+            return;
         //Отрисовка начала очереди
         auto curr = points.front();
         points.pop();
         painterMutex.lock();
-        painter(curr.first,curr.second);
+        painter(curr.first, curr.second);
+        firstValue = false;
         painterMutex.unlock();
+    }
+}
+
+
+//Отправка комманды серверу о продолжении вещания
+void MainWindow::on_pushButton_2_clicked()
+{
+    toServer.append(commands[0]);
+    socket->write(toServer);
+    socket->waitForBytesWritten();
+    toServer.clear();
+    ui->pushButton_2->setEnabled(false);
+    ui->pushButton_3->setEnabled(true);
+}
+
+//Отправка комманды серверу о приостановке вещания
+void MainWindow::on_pushButton_3_clicked()
+{
+    toServer.append(commands[1]);
+    socket->write(toServer);
+    socket->waitForBytesWritten();
+    toServer.clear();
+    ui->pushButton_3->setEnabled(false);
+    ui->pushButton_2->setEnabled(true);
+}
+
+
+void MainWindow::on_lineEdit_3_textChanged(const QString &arg1)
+{
+    bool isOk;
+    auto x = arg1.toDouble(&isOk);
+    if (isOk)
+    {
+        smoothMutex.lock();
+        smooth = x;
+        smoothMutex.unlock();
     }
 }

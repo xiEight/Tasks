@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>412</width>
-    <height>116</height>
+    <height>148</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -30,25 +30,7 @@
          <widget class="QLineEdit" name="lineEdit"/>
         </item>
         <item>
-         <layout class="QVBoxLayout" name="verticalLayout_2">
-          <item>
-           <widget class="QRadioButton" name="radioButton_2">
-            <property name="text">
-             <string>Round Floor</string>
-            </property>
-            <property name="checked">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QRadioButton" name="radioButton">
-            <property name="text">
-             <string>Round Ceil</string>
-            </property>
-           </widget>
-          </item>
-         </layout>
+         <layout class="QVBoxLayout" name="verticalLayout_2"/>
         </item>
        </layout>
       </item>
@@ -62,7 +44,7 @@
       <item>
        <widget class="QPushButton" name="pushButton">
         <property name="text">
-         <string>PushButton</string>
+         <string>Calculate</string>
         </property>
        </widget>
       </item>
